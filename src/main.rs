@@ -19,6 +19,7 @@ sound when timer is up
 
 2.
 */
+
 fn main() {
   // save pomos
   // how to use pomodoro, on help or when asking ofr it
@@ -42,6 +43,12 @@ fn main() {
     let mut options = PomoOptions {
       show_description: false,
     };
+    let (_stream, stream_handle) = rodio::OutputStream::try_default().unwrap();
+    //https://notificationsounds.com/notification-sounds/done-for-you-612
+    let session_over_sound = include_bytes!("../sounds/done-for-you-612.mp3").as_ref();
+
+    //https://notificationsounds.com/notification-sounds/exquisite-557
+    let break_over_sound = include_bytes!("../sounds/exquisite-557.mp3").as_ref();
 
     loop {
       let frame_millis = time::Duration::from_millis(16);
@@ -69,16 +76,14 @@ fn main() {
       if pause_timer.is_some() {
         continue;
       }
-      // if let Some(_timer) = pause_timer {
-      //   continue;
-      // }
 
       // checking for session end
       if current_session.duration < start.elapsed() {
         match current_session.mode {
           SessionMode::LongSession => {
             notify(String::from("Pomotime is over!")).expect("could not notify");
-            session_is_over_sound();
+            play_sound_file(&stream_handle, session_over_sound);
+
             number_of_long_sessions += number_of_long_sessions + 1;
             if number_of_long_sessions == 3 {
               current_session = long_break();
@@ -90,13 +95,14 @@ fn main() {
           }
           SessionMode::LongBreak => {
             notify(String::from("Pomotime is over!")).expect("could not notify");
-            break_is_over_sound();
+            play_sound_file(&stream_handle, break_over_sound);
+
             current_session = long_session();
             start = time::Instant::now();
           }
           SessionMode::ShortBreak => {
             notify(String::from("Pomotime is over!")).expect("could not notify");
-            break_is_over_sound();
+            play_sound_file(&stream_handle, break_over_sound);
             current_session = long_session();
             start = time::Instant::now();
           }
@@ -141,8 +147,8 @@ impl fmt::Display for SessionMode {
 
 fn long_session() -> Session {
   let h = 0;
-  let m = 10;
-  let s = 0;
+  let m = 0;
+  let s = 5;
   let s = Session {
     duration: time::Duration::new(3600 * h + 60 * m + s, 0),
     mode: SessionMode::LongSession,
@@ -172,33 +178,12 @@ fn short_break() -> Session {
   return s;
 }
 
-fn session_is_over_sound() {
-  //http://www.orangefreesounds.com/pling-sound-effect/
-  // let sound_bytes = std::include_bytes!("../sounds/Pling-sound-effect.mp3");
-  let sound_bytes: &[f32] = std::include_bytes!("../sounds/Pling-sound-effect.mp3");
-  impl_from!(u8, f32);
-  let (stream, stream_handle) = rodio::OutputStream::try_default().unwrap();
-
-  // let buf: Vec<i16> = std::io::Cursor::new(sound_bytes.to_vec());
-  // let source = rodio::Decoder::new(buf).unwrap();
-
-  // stream_handle.play_raw(source);
-
-  //
-  // let file = std::fs::File::open("sounds/Pling-sound-effect.mp3").unwrap();
-  // let source = rodio::Decoder::new(std::io::BufReader::new(file)).unwrap();
-  // stream_handle.play_raw(source.convert_samples());
-
-  let vector: Vec<f32> = sound_bytes.to_vec();
-  let mut cursor = std::io::Cursor::new(sound_bytes.as_ref()); // Adds Read and Seek to the bytes via Cursor
-  let source = rodio::Decoder::new(cursor).unwrap(); // Decoder requires it's source to impl both Read and Seek
-  let device = rodio::OutputDevices::default_output_device().unwrap();
-  stream_handle.play_raw(&device, source.convert_samples()); // Plays
-}
-
-fn break_is_over_sound() {
-  //http://www.orangefreesounds.com/alert-notification/
-  // play::play("sounds/Alert-notification.mp3").unwrap();
+fn play_sound_file(stream_handle: &rodio::OutputStreamHandle, sound_file: &'static [u8]) {
+  // we expect &'static because we want the bytes that we read to be available in memory for the lifetime of the program
+  let sound_cursor = std::io::Cursor::new(sound_file);
+  if let Ok(sink) = stream_handle.play_once(sound_cursor) {
+    sink.sleep_until_end()
+  };
 }
 
 struct PomoOptions {

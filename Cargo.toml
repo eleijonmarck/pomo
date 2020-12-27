@@ -8,5 +8,5 @@ edition = "2018"
 
 [dependencies]
 rustbox = "*"
-notify-rust = "4"
 rodio = "0.13.0"
+notify-rust = "4"

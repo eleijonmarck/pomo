@@ -20,6 +20,8 @@ sound when timer is up
 2.
 */
 
+//TODO: https://github.com/clearloop/leetcode-cli/blob/master/src/cli.rs
+
 fn main() {
   // save pomos
   // how to use pomodoro, on help or when asking ofr it

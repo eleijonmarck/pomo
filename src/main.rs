@@ -29,6 +29,19 @@ sound when timer is up
 
 // TODO: https://github.com/clearloop/leetcode-cli/blob/master/src/cli.rs
 
+// How to use the Pomodoro Timer?
+// Set estimate pomodoros (1 = 25min of work) for each tasks
+// Select a task to work on
+// Start timer and focus on the task for 25 minutes
+// Take a break for 5 minutes when the alarm ring
+// Iterate 3-5 until you finish the tasks",
+static DESCRIPTION: [&'static str; 4] = [
+    "How to use the Pomodoro Timer?",
+    "Focus on the task for 25 minutes",
+    "Take a break for 5 minutes when the alarm ring",
+    "Iterate 3-5 until you finish the tasks",
+];
+
 struct PomoOptions {
     show_description: bool,
 }
@@ -169,8 +182,7 @@ fn draw(
     );
 
     if options.show_description {
-        let description = get_description();
-        for (i, d_text) in description.iter().enumerate() {
+        for (i, d_text) in DESCRIPTION.iter().enumerate() {
             let start_x = rb.width() / 2 - d_text.len() / 2;
             let start_y = rb.height() / 4 - 3;
             rb.print(
@@ -209,21 +221,6 @@ fn remain_to_fmt(remain: u64) -> String {
     } else {
         format!("{:02}:{:02}:{:02}", hours, minutes, seconds)
     }
-}
-
-fn get_description() -> [String; 4] {
-    return [
-        String::from("How to use the Pomodoro Timer?"),
-        String::from("focus on the task for 25 minutes"),
-        String::from("Take a break for 5 minutes when the alarm ring"),
-        String::from("Iterate 3-5 until you finish the tasks"),
-    ];
-    // How to use the Pomodoro Timer?
-    // Set estimate pomodoros (1 = 25min of work) for each tasks
-    // Select a task to work on
-    // Start timer and focus on the task for 25 minutes
-    // Take a break for 5 minutes when the alarm ring
-    // Iterate 3-5 until you finish the tasks",
 }
 
 fn notify(body_msg: String) -> Result<notify_rust::NotificationHandle, notify_rust::error::Error> {

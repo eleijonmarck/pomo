@@ -1,10 +1,10 @@
 #[macro_use]
 extern crate lazy_static;
 
-use std::{collections::HashMap, env, process, time};
+use std::{collections::HashMap, env, io, process, time};
 
-use notify_rust::Notification;
-use rodio::OutputStream;
+use notify_rust::{Notification, NotificationHandle};
+use rodio::{OutputStream, OutputStreamHandle};
 use rustbox::{self, Color, Event, InitOptions, Key, RustBox};
 
 use sessions::{Session, SessionMode};
@@ -67,6 +67,7 @@ fn main() {
         };
 
         let (_stream, stream_handle) = OutputStream::try_default().unwrap();
+        let notify = make_notifier(&stream_handle);
         // https://notificationsounds.com/notification-sounds/done-for-you-612
         let session_over_sound = include_bytes!("../sounds/done-for-you-612.mp3").as_ref();
         // https://notificationsounds.com/notification-sounds/exquisite-557
@@ -99,9 +100,7 @@ fn main() {
             if current_session.is_ended() {
                 match current_session.mode {
                     SessionMode::LongSession => {
-                        notify(String::from("Pomotime is over!")).expect("could not notify");
-                        play_sound_file(&stream_handle, session_over_sound);
-
+                        notify("Pomotime is over!", session_over_sound);
                         number_of_long_sessions += number_of_long_sessions + 1;
 
                         if number_of_long_sessions == 3 {
@@ -112,13 +111,11 @@ fn main() {
                         };
                     }
                     SessionMode::LongBreak => {
-                        notify(String::from("Pomotime is over!")).expect("could not notify");
-                        play_sound_file(&stream_handle, break_over_sound);
+                        notify("Pomotime is over!", break_over_sound);
                         current_session = Session::init(SessionMode::LongSession);
                     }
                     SessionMode::ShortBreak => {
-                        notify(String::from("Pomotime is over!")).expect("could not notify");
-                        play_sound_file(&stream_handle, break_over_sound);
+                        notify("Pomotime is over!", break_over_sound);
                         current_session = Session::init(SessionMode::LongSession);
                     }
                 }
@@ -136,14 +133,6 @@ fn main() {
     }
 
     process::exit(exit_code);
-}
-
-fn play_sound_file(stream_handle: &rodio::OutputStreamHandle, sound_file: &'static [u8]) {
-    // we expect &'static because we want the bytes that we read to be available in memory for the lifetime of the program
-    let sound_cursor = std::io::Cursor::new(sound_file);
-    if let Ok(sink) = stream_handle.play_once(sound_cursor) {
-        sink.sleep_until_end()
-    };
 }
 
 fn draw(
@@ -223,11 +212,23 @@ fn remain_to_fmt(remain: u64) -> String {
     }
 }
 
-fn notify(body_msg: String) -> Result<notify_rust::NotificationHandle, notify_rust::error::Error> {
-    return Notification::new()
-        .summary("☝️ Pomotime!")
-        .body(&body_msg)
-        // TODO: should use the image in abstract image
-        .icon("firefox")
-        .show();
+fn make_notifier(
+    stream_handle: &OutputStreamHandle,
+) -> impl Fn(&str, &'static [u8]) -> NotificationHandle + '_ {
+    move |message, sound_file| {
+        let notification = Notification::new()
+            .summary("☝️ Pomotime!")
+            .body(message)
+            // TODO: should use the image in abstract image
+            .icon("firefox")
+            .show();
+
+        // we expect &'static because we want the bytes that we read to be available in memory for the lifetime of the program
+        let sound_cursor = io::Cursor::new(sound_file);
+        if let Ok(sink) = &stream_handle.play_once(sound_cursor) {
+            sink.sleep_until_end();
+        };
+
+        notification.expect("Failed to notify!")
+    }
 }

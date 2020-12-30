@@ -225,7 +225,7 @@ fn make_notifier(
 
         // we expect &'static because we want the bytes that we read to be available in memory for the lifetime of the program
         let sound_cursor = io::Cursor::new(sound_file);
-        if let Ok(sink) = &stream_handle.play_once(sound_cursor) {
+        if let Ok(sink) = stream_handle.play_once(sound_cursor) {
             sink.sleep_until_end();
         };
 

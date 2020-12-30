@@ -1,10 +1,17 @@
+#[macro_use]
+extern crate lazy_static;
+
+use std::{collections::HashMap, env, process, time};
+
 use notify_rust::Notification;
+use rodio::OutputStream;
 use rustbox::{self, Color, Event, InitOptions, Key, RustBox};
-use std::collections::HashMap;
-use std::process::exit;
-use std::{env, fmt, time};
+
+use sessions::{Session, SessionMode};
 
 mod fonts;
+mod sessions;
+
 /*
 inspiration - https://github.com/zenito9970/countdown-rs/blob/master/src/main.rs
 
@@ -20,164 +27,102 @@ sound when timer is up
 2.
 */
 
-//TODO: https://github.com/clearloop/leetcode-cli/blob/master/src/cli.rs
+// TODO: https://github.com/clearloop/leetcode-cli/blob/master/src/cli.rs
+
+struct PomoOptions {
+    show_description: bool,
+}
 
 fn main() {
-    // save pomos
-    // how to use pomodoro, on help or when asking ofr it
+    // how to use pomodoro, on help or when asking for it
     let args: Vec<String> = env::args().skip(1).collect();
     if args.len() != 1 {
-        let program: String = env::args().next().unwrap();
+        let program = env::args().next().unwrap();
         eprintln!("Usage:");
         eprintln!("  {} start", program);
         eprintln!("  {} config", program);
         eprintln!("  {} stop", program);
-        exit(2);
+        process::exit(2);
     }
-    //
 
     let mut exit_code = 0;
     if let Ok(rb) = RustBox::init(InitOptions::default()) {
-        let mut current_session = long_session();
+        let mut current_session = Session::init(SessionMode::LongSession);
         let mut number_of_long_sessions = 0;
-        let mut start = time::Instant::now();
-        let mut pause_timer: Option<time::Instant> = None;
         let mut options = PomoOptions {
             show_description: false,
         };
-        let (_stream, stream_handle) = rodio::OutputStream::try_default().unwrap();
-        //https://notificationsounds.com/notification-sounds/done-for-you-612
-        let session_over_sound = include_bytes!("../sounds/done-for-you-612.mp3").as_ref();
 
-        //https://notificationsounds.com/notification-sounds/exquisite-557
+        let (_stream, stream_handle) = OutputStream::try_default().unwrap();
+        // https://notificationsounds.com/notification-sounds/done-for-you-612
+        let session_over_sound = include_bytes!("../sounds/done-for-you-612.mp3").as_ref();
+        // https://notificationsounds.com/notification-sounds/exquisite-557
         let break_over_sound = include_bytes!("../sounds/exquisite-557.mp3").as_ref();
 
         loop {
             let frame_millis = time::Duration::from_millis(16);
-            if let Event::KeyEvent(key) = rb.peek_event(frame_millis, false).unwrap() {
-                if key == Key::Esc || key == Key::Ctrl('c') {
-                    exit_code = 1;
-                    break;
-                }
-                if key == Key::Char(' ') {
-                    if let Some(timer) = pause_timer {
-                        if let Some(add_timer) = start.checked_add(timer.elapsed()) {
-                            start = add_timer
-                        }
-                        pause_timer = None;
-                    } else {
-                        pause_timer = Some(time::Instant::now());
+            if let Ok(Event::KeyEvent(key)) = rb.peek_event(frame_millis, false) {
+                match key {
+                    Key::Esc | Key::Ctrl('c') => {
+                        exit_code = 1;
+                        break;
                     }
-                    // see for space keypress
-                    println!("pressed space");
-                }
-                if key == Key::Char('?') {
-                    options.show_description = !options.show_description;
+                    Key::Char('?') => {
+                        options.show_description = !options.show_description;
+                    }
+                    Key::Char(' ') => {
+                        current_session.toggle_pause();
+                        // see for space keypress
+                        println!("pressed space");
+                    }
+                    _ => {}
                 }
             }
-            if pause_timer.is_some() {
+
+            if current_session.is_paused() {
                 continue;
             }
 
-            // checking for session end
-            if current_session.duration < start.elapsed() {
+            if current_session.is_ended() {
                 match current_session.mode {
                     SessionMode::LongSession => {
                         notify(String::from("Pomotime is over!")).expect("could not notify");
                         play_sound_file(&stream_handle, session_over_sound);
 
                         number_of_long_sessions += number_of_long_sessions + 1;
+
                         if number_of_long_sessions == 3 {
-                            current_session = long_break();
-                            start = time::Instant::now();
+                            number_of_long_sessions = 0;
+                            current_session = Session::init(SessionMode::LongBreak);
                         } else {
-                            current_session = short_break();
-                            start = time::Instant::now();
-                        }
+                            current_session = Session::init(SessionMode::ShortBreak);
+                        };
                     }
                     SessionMode::LongBreak => {
                         notify(String::from("Pomotime is over!")).expect("could not notify");
                         play_sound_file(&stream_handle, break_over_sound);
-
-                        current_session = long_session();
-                        start = time::Instant::now();
+                        current_session = Session::init(SessionMode::LongSession);
                     }
                     SessionMode::ShortBreak => {
                         notify(String::from("Pomotime is over!")).expect("could not notify");
                         play_sound_file(&stream_handle, break_over_sound);
-                        current_session = long_session();
-                        start = time::Instant::now();
-                    }
-                    _ => {
-                        println!("else")
+                        current_session = Session::init(SessionMode::LongSession);
                     }
                 }
             }
-            let remain = current_session.duration - start.elapsed();
+
             let table = fonts::symbol_table();
             draw(
                 &rb,
-                remain.as_secs(),
+                current_session.remaining().as_secs(),
                 &table,
                 &options,
                 &current_session.mode,
             );
         }
     }
-    exit(exit_code);
-}
 
-#[derive(Debug)]
-enum SessionMode {
-    LongSession,
-    ShortBreak,
-    LongBreak,
-}
-
-struct Session {
-    duration: time::Duration,
-    mode: SessionMode,
-}
-
-impl fmt::Display for SessionMode {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{:?}", self)
-        // or, alternatively:
-        // fmt::Debug::fmt(self, f)
-    }
-}
-
-fn long_session() -> Session {
-    let h = 0;
-    let m = 0;
-    let s = 5;
-    let s = Session {
-        duration: time::Duration::new(3600 * h + 60 * m + s, 0),
-        mode: SessionMode::LongSession,
-    };
-    return s;
-}
-
-fn long_break() -> Session {
-    let h = 0;
-    let m = 15;
-    let s = 0;
-    let s = Session {
-        duration: time::Duration::new(3600 * h + 60 * m + s, 0),
-        mode: SessionMode::LongBreak,
-    };
-    return s;
-}
-
-fn short_break() -> Session {
-    let h = 0;
-    let m = 5;
-    let s = 0;
-    let s = Session {
-        duration: time::Duration::new(3600 * h + 60 * m + s, 0),
-        mode: SessionMode::ShortBreak,
-    };
-    return s;
+    process::exit(exit_code);
 }
 
 fn play_sound_file(stream_handle: &rodio::OutputStreamHandle, sound_file: &'static [u8]) {
@@ -186,10 +131,6 @@ fn play_sound_file(stream_handle: &rodio::OutputStreamHandle, sound_file: &'stat
     if let Ok(sink) = stream_handle.play_once(sound_cursor) {
         sink.sleep_until_end()
     };
-}
-
-struct PomoOptions {
-    show_description: bool,
 }
 
 fn draw(
@@ -229,8 +170,7 @@ fn draw(
 
     if options.show_description {
         let description = get_description();
-        let mut i = 0;
-        for d_text in description.iter() {
+        for (i, d_text) in description.iter().enumerate() {
             let start_x = rb.width() / 2 - d_text.len() / 2;
             let start_y = rb.height() / 4 - 3;
             rb.print(
@@ -241,9 +181,9 @@ fn draw(
                 Color::Default,
                 d_text,
             );
-            i += 1;
         }
     }
+
     rb.present();
 }
 

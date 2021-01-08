@@ -34,7 +34,7 @@ pub struct Session {
 }
 
 impl Session {
-    pub fn init(mode: SessionMode) -> Session {
+    pub fn new(mode: SessionMode) -> Session {
         let (h, m, s) = SESSION_DURATIONS[&mode];
         Session {
             duration: time::Duration::new(3600 * h + 60 * m + s, 0),

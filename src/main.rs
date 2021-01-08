@@ -60,7 +60,7 @@ fn main() {
 
     let mut exit_code = 0;
     if let Ok(rb) = RustBox::init(InitOptions::default()) {
-        let mut current_session = Session::init(SessionMode::LongSession);
+        let mut current_session = Session::new(SessionMode::LongSession);
         let mut number_of_long_sessions = 0;
         let mut options = PomoOptions {
             show_description: false,
@@ -105,18 +105,18 @@ fn main() {
 
                         if number_of_long_sessions == 3 {
                             number_of_long_sessions = 0;
-                            current_session = Session::init(SessionMode::LongBreak);
+                            current_session = Session::new(SessionMode::LongBreak);
                         } else {
-                            current_session = Session::init(SessionMode::ShortBreak);
+                            current_session = Session::new(SessionMode::ShortBreak);
                         };
                     }
                     SessionMode::LongBreak => {
                         notify("Pomotime is over!", break_over_sound);
-                        current_session = Session::init(SessionMode::LongSession);
+                        current_session = Session::new(SessionMode::LongSession);
                     }
                     SessionMode::ShortBreak => {
                         notify("Pomotime is over!", break_over_sound);
-                        current_session = Session::init(SessionMode::LongSession);
+                        current_session = Session::new(SessionMode::LongSession);
                     }
                 }
             }
@@ -226,7 +226,7 @@ fn make_notifier(
         // we expect &'static because we want the bytes that we read to be available in memory for the lifetime of the program
         let sound_cursor = io::Cursor::new(sound_file);
         if let Ok(sink) = stream_handle.play_once(sound_cursor) {
-            sink.sleep_until_end();
+            sink.detach();
         };
 
         notification.expect("Failed to notify!")

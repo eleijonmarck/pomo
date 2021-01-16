@@ -1,17 +1,32 @@
 #[macro_use]
 extern crate lazy_static;
 
-use std::{collections::HashMap, env, io, process, time};
+use std::{env, io, process, time};
 
 use notify_rust::{Notification, NotificationHandle};
 use rodio::{OutputStream, OutputStreamHandle};
-use rustbox::{self, Color, Event, InitOptions, Key, RustBox};
-
 use sessions::{Session, SessionMode};
 
 mod fonts;
 mod sessions;
 
+use crossterm::event::{poll, read, Event};
+use crossterm::{
+    event::{DisableMouseCapture, KeyCode, KeyEvent, KeyModifiers},
+    execute,
+    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
+};
+use tui::{
+    backend::CrosstermBackend,
+    layout::{Alignment, Constraint, Direction, Layout},
+    text::Spans,
+    widgets::{Block, Paragraph, Wrap},
+    Terminal,
+};
+
+use std::io::Write;
+
+// <--- bring the trait into scope
 /*
 inspiration - https://github.com/zenito9970/countdown-rs/blob/master/src/main.rs
 
@@ -46,7 +61,7 @@ struct PomoOptions {
     show_description: bool,
 }
 
-fn main() {
+fn main() -> crossterm::Result<()> {
     // how to use pomodoro, on help or when asking for it
     let args: Vec<String> = env::args().skip(1).collect();
     if args.len() != 1 {
@@ -58,150 +73,134 @@ fn main() {
         process::exit(2);
     }
 
-    let mut exit_code = 0;
-    if let Ok(rb) = RustBox::init(InitOptions::default()) {
-        let mut current_session = Session::new(SessionMode::LongSession);
-        let mut number_of_long_sessions = 0;
-        let mut options = PomoOptions {
-            show_description: false,
-        };
+    //going into raw mode
+    enable_raw_mode()?;
 
-        let (_stream, stream_handle) = OutputStream::try_default().unwrap();
-        let notify = make_notifier(&stream_handle);
-        // https://notificationsounds.com/notification-sounds/done-for-you-612
-        let session_over_sound = include_bytes!("../sounds/done-for-you-612.mp3").as_ref();
-        // https://notificationsounds.com/notification-sounds/exquisite-557
-        let break_over_sound = include_bytes!("../sounds/exquisite-557.mp3").as_ref();
+    let mut stdout = io::stdout();
+    execute!(stdout, EnterAlternateScreen)?;
+    let backend = CrosstermBackend::new(stdout);
+    let mut terminal = Terminal::new(backend)?;
 
-        loop {
-            let frame_millis = time::Duration::from_millis(16);
-            if let Ok(Event::KeyEvent(key)) = rb.peek_event(frame_millis, false) {
-                match key {
-                    Key::Esc | Key::Ctrl('c') => {
-                        exit_code = 1;
-                        break;
-                    }
-                    Key::Char('?') => {
-                        options.show_description = !options.show_description;
-                    }
-                    Key::Char(' ') => {
-                        current_session.toggle_pause();
-                        // see for space keypress
-                        println!("pressed space");
-                    }
-                    _ => {}
-                }
-            }
+    let mut current_session = Session::new(SessionMode::LongSession);
+    let mut number_of_long_sessions = 0;
+    let mut options = PomoOptions {
+        show_description: false,
+    };
 
-            if current_session.is_paused() {
-                continue;
-            }
+    let (_stream, stream_handle) = OutputStream::try_default().unwrap();
+    let notify = make_notifier(&stream_handle);
+    // https://notificationsounds.com/notification-sounds/done-for-you-612
+    let session_over_sound = include_bytes!("../sounds/done-for-you-612.mp3").as_ref();
+    // https://notificationsounds.com/notification-sounds/exquisite-557
+    let break_over_sound = include_bytes!("../sounds/exquisite-557.mp3").as_ref();
 
-            if current_session.is_ended() {
-                match current_session.mode {
-                    SessionMode::LongSession => {
-                        number_of_long_sessions += number_of_long_sessions + 1;
+    terminal.clear()?;
 
-                        if number_of_long_sessions == 3 {
-                            number_of_long_sessions = 0;
-                            current_session = Session::new(SessionMode::LongBreak);
-                            notify("3 LongSessions are over, take a long deserved break!", session_over_sound);
-                        } else {
-                            current_session = Session::new(SessionMode::ShortBreak);
-                            notify("Session is over, take a short break!", session_over_sound);
-                        };
-                    }
-                    SessionMode::LongBreak => {
-                        notify("Break is over!", break_over_sound);
-                        current_session = Session::new(SessionMode::LongSession);
-                    }
-                    SessionMode::ShortBreak => {
-                        notify("Break is over!", break_over_sound);
-                        current_session = Session::new(SessionMode::LongSession);
-                    }
-                }
-            }
+    loop {
+        terminal.draw(|f| {
+            let boundary_box = Layout::default()
+                .direction(Direction::Horizontal)
+                .constraints([Constraint::Min(45)].as_ref())
+                .horizontal_margin((f.size().width - 45) / 2)
+                .split(f.size());
+            let chunks = Layout::default()
+                .direction(Direction::Horizontal)
+                .constraints(
+                    [
+                        Constraint::Max(10),
+                        Constraint::Max(10),
+                        Constraint::Max(5),
+                        Constraint::Max(10),
+                        Constraint::Max(10),
+                    ]
+                    .as_ref(),
+                )
+                .vertical_margin((f.size().height - 6) / 2)
+                .split(boundary_box[0]);
 
             let table = fonts::symbol_table();
-            draw(
-                &rb,
-                current_session.remaining().as_secs(),
-                &table,
-                &options,
-                &current_session.mode,
-            );
+            let fmt = remain_to_fmt(current_session.remaining().as_secs());
+            let symbols: Vec<_> = fmt.chars().map(|c| table[&c].0).collect();
+
+            for (ix, symbol) in symbols.iter().enumerate() {
+                let block = Block::default();
+                let vec: Vec<_> = symbol.iter().map(|c| Spans::from(*c)).collect();
+
+                let paragraph = Paragraph::new(vec.clone())
+                    .block(block)
+                    .alignment(Alignment::Center);
+                // f.render_widget(paragraph, chunks[ix + 1]);
+                f.render_widget(paragraph, chunks[ix]);
+            }
+        })?;
+        // `poll()` waits for an `Event` for a given time period
+        if poll(time::Duration::from_millis(100))? {
+            // It's guaranteed that the `read()` won't block when the `poll()`
+            // function returns `true`
+            //matching the key
+            match read()? {
+                //i think this speaks for itself
+                Event::Key(KeyEvent {
+                    code: KeyCode::Char('q'),
+                    modifiers: KeyModifiers::NONE,
+                })
+                | Event::Key(KeyEvent {
+                    code: KeyCode::Esc,
+                    modifiers: KeyModifiers::NONE,
+                }) => {
+                    disable_raw_mode()?;
+                    execute!(
+                        terminal.backend_mut(),
+                        LeaveAlternateScreen,
+                        DisableMouseCapture
+                    )?;
+                    terminal.show_cursor()?;
+                    break;
+                }
+                Event::Key(KeyEvent {
+                    code: KeyCode::Char(' '),
+                    modifiers: KeyModifiers::NONE,
+                }) => {
+                    current_session.toggle_pause();
+                    // see for space keypress
+                }
+                _ => {}
+            }
+        } else {
+            // Timeout expired and no `Event` is available
+        }
+        if current_session.is_paused() {
+            continue;
+        }
+        if current_session.is_ended() {
+            match current_session.mode {
+                SessionMode::LongSession => {
+                    number_of_long_sessions += number_of_long_sessions + 1;
+
+                    if number_of_long_sessions == 3 {
+                        number_of_long_sessions = 0;
+                        current_session = Session::new(SessionMode::LongBreak);
+                        notify(
+                            "3 LongSessions are over, take a long deserved break!",
+                            session_over_sound,
+                        );
+                    } else {
+                        current_session = Session::new(SessionMode::ShortBreak);
+                        notify("Session is over, take a short break!", session_over_sound);
+                    };
+                }
+                SessionMode::LongBreak => {
+                    notify("Break is over!", break_over_sound);
+                    current_session = Session::new(SessionMode::LongSession);
+                }
+                SessionMode::ShortBreak => {
+                    notify("Break is over!", break_over_sound);
+                    current_session = Session::new(SessionMode::LongSession);
+                }
+            }
         }
     }
-
-    process::exit(exit_code);
-}
-
-fn draw(
-    rb: &RustBox,
-    remain: u64,
-    table: &HashMap<char, ([&str; 6], usize)>,
-    options: &PomoOptions,
-    mode: &SessionMode,
-) {
-    let fmt = remain_to_fmt(remain);
-    let symbols = fmt.chars().map(|c| table[&c]);
-
-    let w_sum = symbols.clone().map(|(_, w)| w).fold(0, |sum, w| sum + w);
-    let start_x = rb.width() / 2 - w_sum / 2;
-    let start_y = rb.height() / 2 - 3;
-
-    rb.clear();
-
-    let mut x = start_x;
-    for (symbol, w) in symbols {
-        echo(rb, &symbol, x, start_y);
-        x += w;
-    }
-
-    // show current mode
-    let modetext = mode.to_string();
-    let start_x = rb.width() / 2 - modetext.len() / 2;
-    let start_y = rb.height() / 1 - 5;
-    rb.print(
-        start_x,
-        start_y,
-        rustbox::RB_NORMAL,
-        Color::Default,
-        Color::Default,
-        &modetext,
-    );
-
-    if options.show_description {
-        for (i, d_text) in DESCRIPTION.iter().enumerate() {
-            let start_x = rb.width() / 2 - d_text.len() / 2;
-            let start_y = rb.height() / 4 - 3;
-            rb.print(
-                start_x,
-                start_y + i,
-                rustbox::RB_NORMAL,
-                Color::Default,
-                Color::Default,
-                d_text,
-            );
-        }
-    }
-
-    rb.present();
-}
-
-fn echo(rb: &RustBox, symbol: &[&str], start_x: usize, start_y: usize) {
-    let mut y = start_y;
-    for line in symbol {
-        rb.print(
-            start_x,
-            y,
-            rustbox::RB_NORMAL,
-            Color::Default,
-            Color::Default,
-            line,
-        );
-        y += 1;
-    }
+    Ok(())
 }
 
 fn remain_to_fmt(remain: u64) -> String {

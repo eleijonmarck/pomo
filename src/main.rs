@@ -100,22 +100,23 @@ fn main() {
             if current_session.is_ended() {
                 match current_session.mode {
                     SessionMode::LongSession => {
-                        notify("Pomotime is over!", session_over_sound);
                         number_of_long_sessions += number_of_long_sessions + 1;
 
                         if number_of_long_sessions == 3 {
                             number_of_long_sessions = 0;
                             current_session = Session::new(SessionMode::LongBreak);
+                            notify("3 LongSessions are over, take a long deserved break!", session_over_sound);
                         } else {
                             current_session = Session::new(SessionMode::ShortBreak);
+                            notify("Session is over, take a short break!", session_over_sound);
                         };
                     }
                     SessionMode::LongBreak => {
-                        notify("Pomotime is over!", break_over_sound);
+                        notify("Break is over!", break_over_sound);
                         current_session = Session::new(SessionMode::LongSession);
                     }
                     SessionMode::ShortBreak => {
-                        notify("Pomotime is over!", break_over_sound);
+                        notify("Break is over!", break_over_sound);
                         current_session = Session::new(SessionMode::LongSession);
                     }
                 }

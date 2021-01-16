@@ -3,7 +3,7 @@ use std::{collections::HashMap, fmt, time};
 lazy_static! {
     pub static ref SESSION_DURATIONS: HashMap<SessionMode, (u64, u64, u64)> = {
         let mut durations: HashMap<SessionMode, (u64, u64, u64)> = HashMap::new();
-        durations.insert(SessionMode::LongSession, (0, 0, 5));
+        durations.insert(SessionMode::LongSession, (0, 25, 0));
         durations.insert(SessionMode::ShortBreak, (0, 5, 0));
         durations.insert(SessionMode::LongBreak, (0, 15, 0));
         durations

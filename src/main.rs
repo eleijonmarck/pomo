@@ -19,6 +19,7 @@ use crossterm::{
 use tui::{
     backend::CrosstermBackend,
     layout::{Alignment, Constraint, Direction, Layout},
+    style::{Color, Modifier, Style},
     text::Spans,
     widgets::{Block, Paragraph, Wrap},
     Terminal,
@@ -97,42 +98,8 @@ fn main() -> crossterm::Result<()> {
     terminal.clear()?;
 
     loop {
-        terminal.draw(|f| {
-            let boundary_box = Layout::default()
-                .direction(Direction::Horizontal)
-                .constraints([Constraint::Min(45)].as_ref())
-                .horizontal_margin((f.size().width - 45) / 2)
-                .split(f.size());
-            let chunks = Layout::default()
-                .direction(Direction::Horizontal)
-                .constraints(
-                    [
-                        Constraint::Max(10),
-                        Constraint::Max(10),
-                        Constraint::Max(5),
-                        Constraint::Max(10),
-                        Constraint::Max(10),
-                    ]
-                    .as_ref(),
-                )
-                .vertical_margin((f.size().height - 6) / 2)
-                .split(boundary_box[0]);
+        // We need to check for all this before drawing for us to be able to catch a pausing of the application
 
-            let table = fonts::symbol_table();
-            let fmt = remain_to_fmt(current_session.remaining().as_secs());
-            let symbols: Vec<_> = fmt.chars().map(|c| table[&c].0).collect();
-
-            for (ix, symbol) in symbols.iter().enumerate() {
-                let block = Block::default();
-                let vec: Vec<_> = symbol.iter().map(|c| Spans::from(*c)).collect();
-
-                let paragraph = Paragraph::new(vec.clone())
-                    .block(block)
-                    .alignment(Alignment::Center);
-                // f.render_widget(paragraph, chunks[ix + 1]);
-                f.render_widget(paragraph, chunks[ix]);
-            }
-        })?;
         // `poll()` waits for an `Event` for a given time period
         if poll(time::Duration::from_millis(100))? {
             // It's guaranteed that the `read()` won't block when the `poll()`
@@ -199,6 +166,55 @@ fn main() -> crossterm::Result<()> {
                 }
             }
         }
+        terminal.draw(|f| {
+            let app_box = Layout::default()
+                .direction(Direction::Horizontal)
+                .constraints([Constraint::Min(45)].as_ref())
+                .horizontal_margin((f.size().width - 45) / 2)
+                .split(f.size());
+            let timer_areas = Layout::default()
+                .direction(Direction::Horizontal)
+                .constraints(
+                    [
+                        Constraint::Max(10),
+                        Constraint::Max(10),
+                        Constraint::Max(5),
+                        Constraint::Max(10),
+                        Constraint::Max(10),
+                    ]
+                    .as_ref(),
+                )
+                .vertical_margin((f.size().height - 6) / 2)
+                .split(app_box[0]);
+
+            let table = fonts::symbol_table();
+            let fmt = remain_to_fmt(current_session.remaining().as_secs());
+            let symbols: Vec<_> = fmt.chars().map(|c| table[&c].0).collect();
+
+            for (ix, symbol) in symbols.iter().enumerate() {
+                let block = Block::default();
+                let vec: Vec<_> = symbol.iter().map(|c| Spans::from(*c)).collect();
+
+                let paragraph = Paragraph::new(vec.clone())
+                    .block(block)
+                    .alignment(Alignment::Center);
+                // f.render_widget(paragraph, chunks[ix + 1]);
+                f.render_widget(paragraph, timer_areas[ix]);
+            }
+
+            let session_text_area = Layout::default()
+                .direction(Direction::Horizontal)
+                .constraints([Constraint::Max(15)].as_ref())
+                .vertical_margin((f.size().height - 10) / 2)
+                .split(app_box[0]);
+            let block = Block::default();
+            let paragraph = Paragraph::new(current_session.mode.to_string())
+                .block(block)
+                .alignment(Alignment::Center)
+                .style(Style::default().add_modifier(Modifier::ITALIC))
+                .wrap(Wrap { trim: true });
+            f.render_widget(paragraph, session_text_area[0])
+        })?;
     }
     Ok(())
 }

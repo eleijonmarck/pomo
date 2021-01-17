@@ -10,5 +10,6 @@ edition = "2018"
 crossterm = "0.18"
 lazy_static = "1.4.0"
 notify-rust = "4"
+num = "0.3"
 rodio = "0.13.0"
 tui = { version = "0.14", default-features = false, features = ["crossterm"] }

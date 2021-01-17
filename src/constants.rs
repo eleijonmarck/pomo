@@ -1,5 +1,17 @@
 use std::collections::HashMap;
 
+use tui::text::Spans;
+
+pub trait IntoSpans<'a> {
+    fn into_spans(self) -> Vec<Spans<'a>>;
+}
+
+impl<'a> IntoSpans<'a> for &'a [&str] {
+    fn into_spans(self) -> Vec<Spans<'a>> {
+        self.iter().map(|&l| Spans::from(l)).collect::<Vec<_>>()
+    }
+}
+
 // How to use the Pomodoro Timer?
 // Set estimate pomodoros (1 = 25min of work) for each tasks
 // Select a task to work on

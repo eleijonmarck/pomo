@@ -15,17 +15,17 @@ use crossterm::{
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
 use notify_rust::{Notification, NotificationHandle};
+use num::Integer;
 use rodio::{OutputStream, OutputStreamHandle};
 use tui::{
     backend::CrosstermBackend,
-    layout::{Alignment, Constraint, Direction, Layout},
+    layout::{Alignment, Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
-    text::{Span, Spans},
-    widgets::{Block, Borders, Paragraph, Wrap},
+    widgets::{Block, Borders, Paragraph},
     Terminal,
 };
 
-use constants::{DESCRIPTION, GLYPH_DEFINITIONS, PAUSE_MSG};
+use constants::{IntoSpans, DESCRIPTION, GLYPH_DEFINITIONS, PAUSE_MSG};
 use session::{IntoRepresentation, Session, SessionMode};
 
 mod constants;
@@ -156,12 +156,15 @@ fn main() -> Result<(), Box<dyn Error>> {
                         state.prev_sessions = 0;
                         state.current_session = Session::new(SessionMode::LongBreak);
                         notify(
-                            "3 sessions are over, take a long deserved break!",
+                            "3 long sessions are over, take a deserved long break!",
                             session_over_sound,
                         );
                     } else {
                         state.current_session = Session::new(SessionMode::ShortBreak);
-                        notify("Session is over, take a short break!", session_over_sound);
+                        notify(
+                            "Long session is over, take a short break!",
+                            session_over_sound,
+                        );
                     };
                 }
                 SessionMode::LongBreak => {
@@ -176,84 +179,38 @@ fn main() -> Result<(), Box<dyn Error>> {
         }
 
         terminal.draw(|f| {
-            let app_box = Layout::default()
-                .direction(Direction::Horizontal)
-                .constraints([Constraint::Min(45)].as_ref())
-                .horizontal_margin(if f.size().width >= 45 {
-                    (f.size().width - 45) / 2
-                } else {
-                    0
-                })
-                .split(f.size());
-
             match state.current_view {
                 PomoViews::Description => {
                     // Height + 2 lines for borders
                     let height = DESCRIPTION.len() as u16 + 2;
-                    let description_dialog_areas = Layout::default()
-                        .direction(Direction::Horizontal)
-                        .constraints([Constraint::Percentage(100)])
-                        .horizontal_margin(if f.size().width >= 60 {
-                            (f.size().width - 60) / 2
-                        } else {
-                            0
-                        })
-                        .vertical_margin(if f.size().height >= height {
-                            (f.size().height - height) / 2
-                        } else {
-                            0
-                        })
-                        .split(f.size());
+                    let description_dialog = make_centered_box(f.size(), 60, height);
+                    let description_dialog_widget = Paragraph::new(DESCRIPTION.into_spans())
+                        .block(Block::default().borders(Borders::ALL).title("Description"));
 
-                    let description_dialog_widget = Paragraph::new(
-                        DESCRIPTION
-                            .iter()
-                            .map(|&l| Spans::from(l))
-                            .collect::<Vec<_>>(),
-                    )
-                    .block(Block::default().borders(Borders::ALL).title("Description"));
-
-                    f.render_widget(description_dialog_widget, description_dialog_areas[0]);
+                    f.render_widget(description_dialog_widget, description_dialog);
                 }
                 PomoViews::Timer => {
+                    let app_box = make_centered_box(f.size(), 45, f.size().height);
+
                     if state.current_session.is_paused() {
-                        let paused_dialog_areas = Layout::default()
-                            .direction(Direction::Horizontal)
-                            .constraints([Constraint::Percentage(100)])
-                            .vertical_margin((f.size().height - 3) / 2)
-                            .split(app_box[0]);
+                        let paused_dialog = make_centered_box(app_box, app_box.width, 4);
+                        let paused_dialog_widget = Paragraph::new(PAUSE_MSG.into_spans())
+                            .block(Block::default().borders(Borders::ALL))
+                            .alignment(Alignment::Center)
+                            .style(Style::default().fg(Color::Red).add_modifier(Modifier::BOLD));
 
-                        let paused_dialog_widget = Paragraph::new(
-                            PAUSE_MSG
-                                .iter()
-                                .map(|&l| {
-                                    Spans::from(Span::styled(
-                                        l,
-                                        Style::default()
-                                            .fg(Color::Red)
-                                            .add_modifier(Modifier::BOLD),
-                                    ))
-                                })
-                                .collect::<Vec<_>>(),
-                        )
-                        .block(Block::default().borders(Borders::ALL))
-                        .alignment(Alignment::Center);
-
-                        f.render_widget(paused_dialog_widget, paused_dialog_areas[0]);
+                        f.render_widget(paused_dialog_widget, paused_dialog);
                     } else {
-                        let session_text_area = Layout::default()
-                            .direction(Direction::Horizontal)
-                            .constraints([Constraint::Max(15)].as_ref())
-                            .vertical_margin((f.size().height - 10) / 2)
-                            .split(app_box[0]);
+                        let session_text_area = make_centered_box(app_box, 15, 10);
                         let session_text_widget =
                             Paragraph::new(state.current_session.mode.to_string())
                                 .block(Block::default())
                                 .alignment(Alignment::Center)
                                 .style(Style::default().add_modifier(Modifier::ITALIC));
 
-                        f.render_widget(session_text_widget, session_text_area[0]);
+                        f.render_widget(session_text_widget, session_text_area);
 
+                        let timer_box = make_centered_box(app_box, 45, 6);
                         let timer_areas = Layout::default()
                             .direction(Direction::Horizontal)
                             .constraints(
@@ -266,25 +223,11 @@ fn main() -> Result<(), Box<dyn Error>> {
                                 ]
                                 .as_ref(),
                             )
-                            .vertical_margin(if f.size().height >= 6 {
-                                (f.size().height - 6) / 2
-                            } else {
-                                0
-                            })
-                            .split(app_box[0]);
+                            .split(timer_box);
 
                         let time_fmt = state.current_session.remaining().into_representation();
-                        let glyph_defs = time_fmt
-                            .chars()
-                            .map(|c| GLYPH_DEFINITIONS[&c])
-                            .collect::<Vec<_>>();
-
-                        for (ix, &glyph_def) in glyph_defs.iter().enumerate() {
-                            let glyph_spans = glyph_def
-                                .iter()
-                                .map(|&l| Spans::from(l))
-                                .collect::<Vec<_>>();
-                            let glyph_widget = Paragraph::new(glyph_spans)
+                        for (ix, c) in time_fmt.chars().enumerate() {
+                            let glyph_widget = Paragraph::new(GLYPH_DEFINITIONS[&c].into_spans())
                                 .block(Block::default())
                                 .alignment(Alignment::Center);
 
@@ -297,6 +240,30 @@ fn main() -> Result<(), Box<dyn Error>> {
     }
 
     Ok(())
+}
+
+fn make_centered_box(rect: Rect, width: u16, height: u16) -> Rect {
+    let Rect {
+        height: frame_height,
+        width: frame_width,
+        ..
+    } = rect;
+    let box_areas = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([Constraint::Min(width)].as_ref())
+        .horizontal_margin(if frame_width >= width {
+            (frame_width - width).div_floor(&2)
+        } else {
+            0
+        })
+        .vertical_margin(if frame_height >= height {
+            (frame_height - height).div_floor(&2)
+        } else {
+            0
+        })
+        .split(rect);
+
+    box_areas[0]
 }
 
 fn make_notifier(

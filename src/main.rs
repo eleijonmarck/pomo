@@ -1,33 +1,36 @@
 #[macro_use]
 extern crate lazy_static;
 
-use std::{env, io, process, time};
+use std::{
+    env,
+    error::Error,
+    io::{stdout, Cursor, Write}, // The Write trait is needed for stdout
+    process,
+    time::Duration,
+};
 
-use notify_rust::{Notification, NotificationHandle};
-use rodio::{OutputStream, OutputStreamHandle};
-use sessions::{Session, SessionMode};
-
-mod fonts;
-mod sessions;
-
-use crossterm::event::{poll, read, Event};
 use crossterm::{
-    event::{DisableMouseCapture, KeyCode, KeyEvent, KeyModifiers},
+    event::{poll, read, DisableMouseCapture, Event, KeyCode, KeyEvent, KeyModifiers},
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
+use notify_rust::{Notification, NotificationHandle};
+use rodio::{OutputStream, OutputStreamHandle};
 use tui::{
     backend::CrosstermBackend,
     layout::{Alignment, Constraint, Direction, Layout},
     style::{Color, Modifier, Style},
-    text::Spans,
-    widgets::{Block, Paragraph, Wrap},
+    text::{Span, Spans},
+    widgets::{Block, Borders, Paragraph, Wrap},
     Terminal,
 };
 
-use std::io::Write;
+use constants::{DESCRIPTION, GLYPH_DEFINITIONS, PAUSE_MSG};
+use session::{IntoRepresentation, Session, SessionMode};
 
-// <--- bring the trait into scope
+mod constants;
+mod session;
+
 /*
 inspiration - https://github.com/zenito9970/countdown-rs/blob/master/src/main.rs
 
@@ -45,27 +48,32 @@ sound when timer is up
 
 // TODO: https://github.com/clearloop/leetcode-cli/blob/master/src/cli.rs
 
-// How to use the Pomodoro Timer?
-// Set estimate pomodoros (1 = 25min of work) for each tasks
-// Select a task to work on
-// Start timer and focus on the task for 25 minutes
-// Take a break for 5 minutes when the alarm ring
-// Iterate 3-5 until you finish the tasks",
-static DESCRIPTION: [&'static str; 4] = [
-    "How to use the Pomodoro Timer?",
-    "Focus on the task for 25 minutes",
-    "Take a break for 5 minutes when the alarm ring",
-    "Iterate 3-5 until you finish the tasks",
-];
-
-struct PomoOptions {
-    show_description: bool,
+#[derive(Debug)]
+enum PomoViews {
+    Description,
+    Timer,
 }
 
-fn main() -> crossterm::Result<()> {
+#[derive(Debug)]
+struct PomoState {
+    current_session: Session,
+    current_view: PomoViews,
+    prev_sessions: i16,
+}
+
+impl Default for PomoState {
+    fn default() -> PomoState {
+        PomoState {
+            current_session: Session::new(SessionMode::LongSession),
+            current_view: PomoViews::Timer,
+            prev_sessions: 0,
+        }
+    }
+}
+
+fn main() -> Result<(), Box<dyn Error>> {
     // how to use pomodoro, on help or when asking for it
-    let args: Vec<String> = env::args().skip(1).collect();
-    if args.len() != 1 {
+    if env::args().len() > 2 {
         let program = env::args().next().unwrap();
         eprintln!("Usage:");
         eprintln!("  {} start", program);
@@ -74,39 +82,35 @@ fn main() -> crossterm::Result<()> {
         process::exit(2);
     }
 
-    //going into raw mode
+    // Going into raw mode
     enable_raw_mode()?;
 
-    let mut stdout = io::stdout();
+    let mut stdout = stdout();
     execute!(stdout, EnterAlternateScreen)?;
+
     let backend = CrosstermBackend::new(stdout);
+
     let mut terminal = Terminal::new(backend)?;
+    terminal.clear()?;
 
-    let mut current_session = Session::new(SessionMode::LongSession);
-    let mut number_of_long_sessions = 0;
-    let mut options = PomoOptions {
-        show_description: false,
-    };
-
-    let (_stream, stream_handle) = OutputStream::try_default().unwrap();
+    let (_stream, stream_handle) = OutputStream::try_default()?;
     let notify = make_notifier(&stream_handle);
     // https://notificationsounds.com/notification-sounds/done-for-you-612
     let session_over_sound = include_bytes!("../sounds/done-for-you-612.mp3").as_ref();
     // https://notificationsounds.com/notification-sounds/exquisite-557
     let break_over_sound = include_bytes!("../sounds/exquisite-557.mp3").as_ref();
 
-    terminal.clear()?;
+    let mut state = PomoState::default();
 
     loop {
         // We need to check for all this before drawing for us to be able to catch a pausing of the application
 
         // `poll()` waits for an `Event` for a given time period
-        if poll(time::Duration::from_millis(100))? {
-            // It's guaranteed that the `read()` won't block when the `poll()`
-            // function returns `true`
-            //matching the key
+        if poll(Duration::from_millis(250))? {
+            // It's guaranteed that the `read()` won't block,
+            // when the `poll()` function returns `true`.
+            // Matching the key
             match read()? {
-                //i think this speaks for itself
                 Event::Key(KeyEvent {
                     code: KeyCode::Char('q'),
                     modifiers: KeyModifiers::NONE,
@@ -125,107 +129,170 @@ fn main() -> crossterm::Result<()> {
                     break;
                 }
                 Event::Key(KeyEvent {
+                    code: KeyCode::Char('?'),
+                    modifiers: KeyModifiers::NONE,
+                }) => {
+                    state.current_view = match state.current_view {
+                        PomoViews::Timer => PomoViews::Description,
+                        PomoViews::Description => PomoViews::Timer,
+                    }
+                }
+                Event::Key(KeyEvent {
                     code: KeyCode::Char(' '),
                     modifiers: KeyModifiers::NONE,
                 }) => {
-                    current_session.toggle_pause();
-                    // see for space keypress
+                    state.current_session.toggle_pause();
                 }
                 _ => {}
             }
-        } else {
-            // Timeout expired and no `Event` is available
         }
-        if current_session.is_paused() {
-            continue;
-        }
-        if current_session.is_ended() {
-            match current_session.mode {
-                SessionMode::LongSession => {
-                    number_of_long_sessions += number_of_long_sessions + 1;
 
-                    if number_of_long_sessions == 3 {
-                        number_of_long_sessions = 0;
-                        current_session = Session::new(SessionMode::LongBreak);
+        if state.current_session.is_ended() {
+            match state.current_session.mode {
+                SessionMode::LongSession => {
+                    state.prev_sessions += 1;
+
+                    if state.prev_sessions == 3 {
+                        state.prev_sessions = 0;
+                        state.current_session = Session::new(SessionMode::LongBreak);
                         notify(
-                            "3 LongSessions are over, take a long deserved break!",
+                            "3 sessions are over, take a long deserved break!",
                             session_over_sound,
                         );
                     } else {
-                        current_session = Session::new(SessionMode::ShortBreak);
+                        state.current_session = Session::new(SessionMode::ShortBreak);
                         notify("Session is over, take a short break!", session_over_sound);
                     };
                 }
                 SessionMode::LongBreak => {
-                    notify("Break is over!", break_over_sound);
-                    current_session = Session::new(SessionMode::LongSession);
+                    notify("Long break is over!", break_over_sound);
+                    state.current_session = Session::new(SessionMode::LongSession);
                 }
                 SessionMode::ShortBreak => {
-                    notify("Break is over!", break_over_sound);
-                    current_session = Session::new(SessionMode::LongSession);
+                    notify("Short break is over!", break_over_sound);
+                    state.current_session = Session::new(SessionMode::LongSession);
                 }
             }
         }
-        terminal.draw(|f| {
-            let app_box = Layout::default()
-                .direction(Direction::Horizontal)
-                .constraints([Constraint::Min(45)].as_ref())
-                .horizontal_margin((f.size().width - 45) / 2)
-                .split(f.size());
-            let timer_areas = Layout::default()
-                .direction(Direction::Horizontal)
-                .constraints(
-                    [
-                        Constraint::Max(10),
-                        Constraint::Max(10),
-                        Constraint::Max(5),
-                        Constraint::Max(10),
-                        Constraint::Max(10),
-                    ]
-                    .as_ref(),
+
+        terminal.draw(|f| match state.current_view {
+            PomoViews::Description => {
+                // Height + 2 lines for borders
+                let height = DESCRIPTION.len() as u16 + 2;
+                let chunks = Layout::default()
+                    .direction(Direction::Horizontal)
+                    .constraints([Constraint::Percentage(100)])
+                    .horizontal_margin(if f.size().width >= 60 {
+                        (f.size().width - 60) / 2
+                    } else {
+                        0
+                    })
+                    .vertical_margin(if f.size().height >= height {
+                        (f.size().height - height) / 2
+                    } else {
+                        0
+                    })
+                    .split(f.size());
+
+                let paragraph = Paragraph::new(
+                    DESCRIPTION
+                        .iter()
+                        .map(|&l| Spans::from(l))
+                        .collect::<Vec<_>>(),
                 )
-                .vertical_margin((f.size().height - 6) / 2)
-                .split(app_box[0]);
+                .block(Block::default().borders(Borders::ALL).title("Description"));
 
-            let table = fonts::symbol_table();
-            let fmt = remain_to_fmt(current_session.remaining().as_secs());
-            let symbols: Vec<_> = fmt.chars().map(|c| table[&c].0).collect();
-
-            for (ix, symbol) in symbols.iter().enumerate() {
-                let block = Block::default();
-                let vec: Vec<_> = symbol.iter().map(|c| Spans::from(*c)).collect();
-
-                let paragraph = Paragraph::new(vec.clone())
-                    .block(block)
-                    .alignment(Alignment::Center);
-                // f.render_widget(paragraph, chunks[ix + 1]);
-                f.render_widget(paragraph, timer_areas[ix]);
+                f.render_widget(paragraph, chunks[0]);
             }
+            PomoViews::Timer => {
+                if state.current_session.is_paused() {
+                    let width = PAUSE_MSG.chars().count() as u16;
+                    let chunks = Layout::default()
+                        .direction(Direction::Horizontal)
+                        .constraints([Constraint::Percentage(100)])
+                        .horizontal_margin(if f.size().width >= width {
+                            (f.size().width - width) / 2
+                        } else {
+                            0
+                        })
+                        .vertical_margin((f.size().height - 1) / 2)
+                        .split(f.size());
 
-            let session_text_area = Layout::default()
-                .direction(Direction::Horizontal)
-                .constraints([Constraint::Max(15)].as_ref())
-                .vertical_margin((f.size().height - 10) / 2)
-                .split(app_box[0]);
-            let block = Block::default();
-            let paragraph = Paragraph::new(current_session.mode.to_string())
-                .block(block)
-                .alignment(Alignment::Center)
-                .style(Style::default().add_modifier(Modifier::ITALIC))
-                .wrap(Wrap { trim: true });
-            f.render_widget(paragraph, session_text_area[0])
+                    let paragraph = Paragraph::new(Span::styled(
+                        PAUSE_MSG,
+                        Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
+                    ))
+                    .block(Block::default())
+                    .alignment(Alignment::Center);
+
+                    f.render_widget(paragraph, chunks[0]);
+                } else {
+                    let app_box = Layout::default()
+                        .direction(Direction::Horizontal)
+                        .constraints([Constraint::Min(45)].as_ref())
+                        .horizontal_margin((f.size().width - 45) / 2)
+                        .split(f.size());
+
+                    let timer_areas = Layout::default()
+                        .direction(Direction::Horizontal)
+                        .constraints(
+                            [
+                                Constraint::Max(10),
+                                Constraint::Max(10),
+                                Constraint::Max(5),
+                                Constraint::Max(10),
+                                Constraint::Max(10),
+                            ]
+                            .as_ref(),
+                        )
+                        .horizontal_margin(if f.size().width >= 45 {
+                            (f.size().width - 45) / 2
+                        } else {
+                            0
+                        })
+                        .vertical_margin(if f.size().height >= 6 {
+                            (f.size().height - 6) / 2
+                        } else {
+                            0
+                        })
+                        .split(f.size());
+
+                    let time_fmt = state.current_session.remaining().into_representation();
+                    let glyph_defs = time_fmt
+                        .chars()
+                        .map(|c| GLYPH_DEFINITIONS[&c])
+                        .collect::<Vec<_>>();
+
+                    for (ix, &glyph_def) in glyph_defs.iter().enumerate() {
+                        let glyph_spans = glyph_def
+                            .iter()
+                            .map(|&l| Spans::from(l))
+                            .collect::<Vec<_>>();
+                        let paragraph = Paragraph::new(glyph_spans)
+                            .block(Block::default())
+                            .alignment(Alignment::Center);
+
+                        f.render_widget(paragraph, chunks[ix]);
+                    }
+
+                    let session_text_area = Layout::default()
+                        .direction(Direction::Horizontal)
+                        .constraints([Constraint::Max(15)].as_ref())
+                        .vertical_margin((f.size().height - 10) / 2)
+                        .split(app_box[0]);
+                    let block = Block::default();
+                    let paragraph = Paragraph::new(current_session.mode.to_string())
+                        .block(block)
+                        .alignment(Alignment::Center)
+                        .style(Style::default().add_modifier(Modifier::ITALIC))
+                        .wrap(Wrap { trim: true });
+                    f.render_widget(paragraph, session_text_area[0])
+                }
+            }
         })?;
     }
-    Ok(())
-}
 
-fn remain_to_fmt(remain: u64) -> String {
-    let (hours, minutes, seconds) = (remain / 3600, (remain % 3600) / 60, remain % 60);
-    if hours == 0 {
-        format!("{:02}:{:02}", minutes, seconds)
-    } else {
-        format!("{:02}:{:02}:{:02}", hours, minutes, seconds)
-    }
+    Ok(())
 }
 
 fn make_notifier(
@@ -240,7 +307,7 @@ fn make_notifier(
             .show();
 
         // we expect &'static because we want the bytes that we read to be available in memory for the lifetime of the program
-        let sound_cursor = io::Cursor::new(sound_file);
+        let sound_cursor = Cursor::new(sound_file);
         if let Ok(sink) = stream_handle.play_once(sound_cursor) {
             sink.detach();
         };

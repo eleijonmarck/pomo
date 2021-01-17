@@ -175,118 +175,122 @@ fn main() -> Result<(), Box<dyn Error>> {
             }
         }
 
-        terminal.draw(|f| match state.current_view {
-            PomoViews::Description => {
-                // Height + 2 lines for borders
-                let height = DESCRIPTION.len() as u16 + 2;
-                let chunks = Layout::default()
-                    .direction(Direction::Horizontal)
-                    .constraints([Constraint::Percentage(100)])
-                    .horizontal_margin(if f.size().width >= 60 {
-                        (f.size().width - 60) / 2
-                    } else {
-                        0
-                    })
-                    .vertical_margin(if f.size().height >= height {
-                        (f.size().height - height) / 2
-                    } else {
-                        0
-                    })
-                    .split(f.size());
+        terminal.draw(|f| {
+            let app_box = Layout::default()
+                .direction(Direction::Horizontal)
+                .constraints([Constraint::Min(45)].as_ref())
+                .horizontal_margin(if f.size().width >= 45 {
+                    (f.size().width - 45) / 2
+                } else {
+                    0
+                })
+                .split(f.size());
 
-                let paragraph = Paragraph::new(
-                    DESCRIPTION
-                        .iter()
-                        .map(|&l| Spans::from(l))
-                        .collect::<Vec<_>>(),
-                )
-                .block(Block::default().borders(Borders::ALL).title("Description"));
-
-                f.render_widget(paragraph, chunks[0]);
-            }
-            PomoViews::Timer => {
-                if state.current_session.is_paused() {
-                    let width = PAUSE_MSG.chars().count() as u16;
-                    let chunks = Layout::default()
+            match state.current_view {
+                PomoViews::Description => {
+                    // Height + 2 lines for borders
+                    let height = DESCRIPTION.len() as u16 + 2;
+                    let description_dialog_areas = Layout::default()
                         .direction(Direction::Horizontal)
                         .constraints([Constraint::Percentage(100)])
-                        .horizontal_margin(if f.size().width >= width {
-                            (f.size().width - width) / 2
+                        .horizontal_margin(if f.size().width >= 60 {
+                            (f.size().width - 60) / 2
                         } else {
                             0
                         })
-                        .vertical_margin((f.size().height - 1) / 2)
-                        .split(f.size());
-
-                    let paragraph = Paragraph::new(Span::styled(
-                        PAUSE_MSG,
-                        Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
-                    ))
-                    .block(Block::default())
-                    .alignment(Alignment::Center);
-
-                    f.render_widget(paragraph, chunks[0]);
-                } else {
-                    let app_box = Layout::default()
-                        .direction(Direction::Horizontal)
-                        .constraints([Constraint::Min(45)].as_ref())
-                        .horizontal_margin((f.size().width - 45) / 2)
-                        .split(f.size());
-
-                    let timer_areas = Layout::default()
-                        .direction(Direction::Horizontal)
-                        .constraints(
-                            [
-                                Constraint::Max(10),
-                                Constraint::Max(10),
-                                Constraint::Max(5),
-                                Constraint::Max(10),
-                                Constraint::Max(10),
-                            ]
-                            .as_ref(),
-                        )
-                        .horizontal_margin(if f.size().width >= 45 {
-                            (f.size().width - 45) / 2
-                        } else {
-                            0
-                        })
-                        .vertical_margin(if f.size().height >= 6 {
-                            (f.size().height - 6) / 2
+                        .vertical_margin(if f.size().height >= height {
+                            (f.size().height - height) / 2
                         } else {
                             0
                         })
                         .split(f.size());
 
-                    let time_fmt = state.current_session.remaining().into_representation();
-                    let glyph_defs = time_fmt
-                        .chars()
-                        .map(|c| GLYPH_DEFINITIONS[&c])
-                        .collect::<Vec<_>>();
-
-                    for (ix, &glyph_def) in glyph_defs.iter().enumerate() {
-                        let glyph_spans = glyph_def
+                    let description_dialog_widget = Paragraph::new(
+                        DESCRIPTION
                             .iter()
                             .map(|&l| Spans::from(l))
+                            .collect::<Vec<_>>(),
+                    )
+                    .block(Block::default().borders(Borders::ALL).title("Description"));
+
+                    f.render_widget(description_dialog_widget, description_dialog_areas[0]);
+                }
+                PomoViews::Timer => {
+                    if state.current_session.is_paused() {
+                        let paused_dialog_areas = Layout::default()
+                            .direction(Direction::Horizontal)
+                            .constraints([Constraint::Percentage(100)])
+                            .vertical_margin((f.size().height - 3) / 2)
+                            .split(app_box[0]);
+
+                        let paused_dialog_widget = Paragraph::new(
+                            PAUSE_MSG
+                                .iter()
+                                .map(|&l| {
+                                    Spans::from(Span::styled(
+                                        l,
+                                        Style::default()
+                                            .fg(Color::Red)
+                                            .add_modifier(Modifier::BOLD),
+                                    ))
+                                })
+                                .collect::<Vec<_>>(),
+                        )
+                        .block(Block::default().borders(Borders::ALL))
+                        .alignment(Alignment::Center);
+
+                        f.render_widget(paused_dialog_widget, paused_dialog_areas[0]);
+                    } else {
+                        let session_text_area = Layout::default()
+                            .direction(Direction::Horizontal)
+                            .constraints([Constraint::Max(15)].as_ref())
+                            .vertical_margin((f.size().height - 10) / 2)
+                            .split(app_box[0]);
+                        let session_text_widget =
+                            Paragraph::new(state.current_session.mode.to_string())
+                                .block(Block::default())
+                                .alignment(Alignment::Center)
+                                .style(Style::default().add_modifier(Modifier::ITALIC));
+
+                        f.render_widget(session_text_widget, session_text_area[0]);
+
+                        let timer_areas = Layout::default()
+                            .direction(Direction::Horizontal)
+                            .constraints(
+                                [
+                                    Constraint::Max(10),
+                                    Constraint::Max(10),
+                                    Constraint::Max(5),
+                                    Constraint::Max(10),
+                                    Constraint::Max(10),
+                                ]
+                                .as_ref(),
+                            )
+                            .vertical_margin(if f.size().height >= 6 {
+                                (f.size().height - 6) / 2
+                            } else {
+                                0
+                            })
+                            .split(app_box[0]);
+
+                        let time_fmt = state.current_session.remaining().into_representation();
+                        let glyph_defs = time_fmt
+                            .chars()
+                            .map(|c| GLYPH_DEFINITIONS[&c])
                             .collect::<Vec<_>>();
-                        let paragraph = Paragraph::new(glyph_spans)
-                            .block(Block::default())
-                            .alignment(Alignment::Center);
 
-                        f.render_widget(paragraph, chunks[ix]);
+                        for (ix, &glyph_def) in glyph_defs.iter().enumerate() {
+                            let glyph_spans = glyph_def
+                                .iter()
+                                .map(|&l| Spans::from(l))
+                                .collect::<Vec<_>>();
+                            let glyph_widget = Paragraph::new(glyph_spans)
+                                .block(Block::default())
+                                .alignment(Alignment::Center);
+
+                            f.render_widget(glyph_widget, timer_areas[ix]);
+                        }
                     }
-
-                    let session_text_area = Layout::default()
-                        .direction(Direction::Horizontal)
-                        .constraints([Constraint::Max(15)].as_ref())
-                        .vertical_margin((f.size().height - 10) / 2)
-                        .split(app_box[0]);
-                    let block = Block::default();
-                    let paragraph = Paragraph::new(current_session.mode.to_string())
-                        .block(block)
-                        .alignment(Alignment::Center)
-                        .style(Style::default().add_modifier(Modifier::ITALIC))
-                        .wrap(Wrap { trim: true });
-                    f.render_widget(paragraph, session_text_area[0])
                 }
             }
         })?;

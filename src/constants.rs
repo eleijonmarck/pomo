@@ -15,7 +15,7 @@ pub const DESCRIPTION: [&'static str; 6] = [
     "",
 ];
 
-pub const PAUSE_MSG: &'static str = "-- Paused --";
+pub const PAUSE_MSG: [&'static str; 2] = ["-- Paused --", "Press <space> to resume"];
 
 lazy_static! {
     pub static ref GLYPH_DEFINITIONS: HashMap<char, [&'static str; 6]> = {

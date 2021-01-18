@@ -7,7 +7,9 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+crossterm = "0.18"
 lazy_static = "1.4.0"
 notify-rust = "4"
+num = "0.3"
 rodio = "0.13.0"
-rustbox = "*"
+tui = { version = "0.14", default-features = false, features = ["crossterm"] }

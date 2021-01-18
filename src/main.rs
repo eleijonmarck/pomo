@@ -31,6 +31,8 @@ use session::{IntoRepresentation, Session, SessionMode};
 mod constants;
 mod session;
 
+use confy;
+use serde::{Deserialize, Serialize};
 /*
 inspiration - https://github.com/zenito9970/countdown-rs/blob/master/src/main.rs
 
@@ -71,16 +73,33 @@ impl Default for PomoState {
     }
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+struct PomoConfig {
+    name: String,
+    longsession: String,
+}
+
+impl Default for PomoConfig {
+    fn default() -> Self {
+        PomoConfig {
+            name: "Unknown".to_string(),
+            longsession: "25:00".to_string(),
+        }
+    }
+}
+
 fn main() -> Result<(), Box<dyn Error>> {
     // how to use pomodoro, on help or when asking for it
     if env::args().len() > 2 {
         let program = env::args().next().unwrap();
-        eprintln!("Usage:");
         eprintln!("  {} start", program);
         eprintln!("  {} config", program);
         eprintln!("  {} stop", program);
         process::exit(2);
     }
+
+    let cfg: PomoConfig = confy::load("pomo")?;
+    println!("{:#?}", cfg);
 
     // Going into raw mode
     enable_raw_mode()?;

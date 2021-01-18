@@ -8,3 +8,12 @@
 [] documentation of the whole shit
 [] publish
 [] cash in
+
+## Configuration
+
+for a username of alice, you would find the configuration file here
+```
+    // Linux:   /home/alice/.config/pomo
+    // Windows: C:\Users\Alice\AppData\Roaming\pomo
+    // macOS:   /Users/Alice/Library/Application Support/com.pomo
+```

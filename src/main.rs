@@ -75,14 +75,12 @@ impl Default for PomoState {
 
 #[derive(Debug, Serialize, Deserialize)]
 struct PomoConfig {
-    name: String,
     long_session_minutes: u8,
 }
 
 impl Default for PomoConfig {
     fn default() -> Self {
         PomoConfig {
-            name: "Unknown".to_string(),
             long_session_minutes: 25,
         }
     }

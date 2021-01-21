@@ -13,7 +13,10 @@ $ cargo run start
 
 ## Motivation
 
-I love to get productive with my pomodoro timers. However once I made the move to linux, I used Pomodroid which took up 25% of the CPU and could not find a alternative.
+I love to get productive with my pomodoro timers. However once I made the move to linux, I used Pomotroid which took up 25% to 55% of the CPU (XPS-15 2020) and could not find a alternative.
+
+<img src="./images/pomotroid-cpu-usage.png" alt="drawing" width="550"/>
+
 This is the take to make a pomodoro timer the most performant possible and easy to use through your terminal.
 
 - here we can bind the binary data from the audio directly into the published binary

@@ -5,11 +5,18 @@ use std::{
     time::{Duration, Instant},
 };
 
+use confy;
+mod config;
+
 lazy_static! {
     pub static ref SESSION_DURATIONS: HashMap<SessionMode, (u64, u64, u64)> = {
         let mut durations: HashMap<SessionMode, (u64, u64, u64)> = HashMap::new();
-        durations.insert(SessionMode::LongSession, (0, 25, 0));
-        durations.insert(SessionMode::ShortBreak, (0, 5, 0));
+
+        // ugly but working way of using the config
+        let cfg: config::PomoConfig = confy::load("pomo").expect("yo, config not working");
+
+        durations.insert(SessionMode::LongSession, (0, cfg.long_session_minutes, 0));
+        durations.insert(SessionMode::ShortBreak, (0, cfg.short_break_minutes, 0));
         durations.insert(SessionMode::LongBreak, (0, 15, 0));
         durations
     };

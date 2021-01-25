@@ -73,19 +73,6 @@ impl Default for PomoState {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-struct PomoConfig {
-    long_session_minutes: u8,
-}
-
-impl Default for PomoConfig {
-    fn default() -> Self {
-        PomoConfig {
-            long_session_minutes: 25,
-        }
-    }
-}
-
 fn main() -> Result<(), Box<dyn Error>> {
     // how to use pomodoro, on help or when asking for it
     if env::args().len() > 2 {
@@ -95,9 +82,6 @@ fn main() -> Result<(), Box<dyn Error>> {
         eprintln!("  {} stop", program);
         process::exit(2);
     }
-
-    let cfg: PomoConfig = confy::load("pomo")?;
-    println!("{:#?}", cfg);
 
     // Going into raw mode
     enable_raw_mode()?;

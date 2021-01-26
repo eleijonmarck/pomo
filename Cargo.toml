@@ -13,3 +13,5 @@ notify-rust = "4"
 num = "0.3"
 rodio = "0.13.0"
 tui = { version = "0.14", default-features = false, features = ["crossterm"] }
+confy = "0.4.0"
+serde = "^1.0"

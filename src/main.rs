@@ -31,6 +31,8 @@ use session::{IntoRepresentation, Session, SessionMode};
 mod constants;
 mod session;
 
+use confy;
+use serde::{Deserialize, Serialize};
 /*
 inspiration - https://github.com/zenito9970/countdown-rs/blob/master/src/main.rs
 
@@ -75,7 +77,6 @@ fn main() -> Result<(), Box<dyn Error>> {
     // how to use pomodoro, on help or when asking for it
     if env::args().len() > 2 {
         let program = env::args().next().unwrap();
-        eprintln!("Usage:");
         eprintln!("  {} start", program);
         eprintln!("  {} config", program);
         eprintln!("  {} stop", program);

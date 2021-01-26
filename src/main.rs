@@ -31,8 +31,6 @@ use session::{IntoRepresentation, Session, SessionMode};
 mod constants;
 mod session;
 
-use confy;
-use serde::{Deserialize, Serialize};
 /*
 inspiration - https://github.com/zenito9970/countdown-rs/blob/master/src/main.rs
 

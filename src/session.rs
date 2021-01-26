@@ -17,7 +17,7 @@ lazy_static! {
 
         durations.insert(SessionMode::LongSession, (0, cfg.long_session_minutes, 0));
         durations.insert(SessionMode::ShortBreak, (0, cfg.short_break_minutes, 0));
-        durations.insert(SessionMode::LongBreak, (0, 15, 0));
+        durations.insert(SessionMode::LongBreak, (0, cfg.long_break_minutes, 0));
         durations
     };
 }

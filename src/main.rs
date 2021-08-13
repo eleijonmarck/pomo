@@ -33,20 +33,7 @@ mod session;
 
 /*
 inspiration - https://github.com/zenito9970/countdown-rs/blob/master/src/main.rs
-
-todo:
-1.
-cli
-- start/stop: starts from beginning 25:00 -> short break -> short break
-- config: sets different config for different situations
-- stats: statistics about the different uses of the configs and how long you have worked on them
-
-sound when timer is up
-
-2.
 */
-
-// TODO: https://github.com/clearloop/leetcode-cli/blob/master/src/cli.rs
 
 #[derive(Debug)]
 enum PomoViews {
@@ -82,7 +69,6 @@ fn main() -> Result<(), Box<dyn Error>> {
         process::exit(2);
     }
 
-    // Going into raw mode
     enable_raw_mode()?;
 
     let mut stdout = stdout();
@@ -103,7 +89,8 @@ fn main() -> Result<(), Box<dyn Error>> {
     let mut state = PomoState::default();
 
     loop {
-        // We need to check for all this before drawing for us to be able to catch a pausing of the application
+        // We need to check for events and keystrokes before drawing
+        // - for us to be able to catch a pausing of the application or similiar
 
         // `poll()` waits for an `Event` for a given time period
         if poll(Duration::from_millis(250))? {

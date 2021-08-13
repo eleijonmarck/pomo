@@ -28,10 +28,10 @@ If you find that this could be improved please send in a PR and make benchmarks.
 
 ## TODO:
 
-[x] tui-rs implementation of the ui
-[x] configuration in form of a configuration file toml
-[] possibility to change font in normal mode
-[] make it into a zsh view, so basically a terminal window or i3 stdout with the string output from the timer
-[] documentation of PR reviews and start up
-[] publish
-[] add sms notifcations for when the break is over
+- [x] tui-rs implementation of the ui
+- [x] configuration in form of a configuration file toml
+- [] possibility to change font in normal mode
+- [] make it into a zsh view, so basically a terminal window or i3 stdout with the string output from the timer
+- [] documentation of PR reviews and start up
+- [] publish
+- [] add sms notifcations for when the break is over

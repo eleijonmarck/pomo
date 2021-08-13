@@ -25,8 +25,6 @@ pub enum SessionMode {
 impl Display for SessionMode {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         write!(f, "{:?}", self)
-        // or, alternatively:
-        // fmt::Debug::fmt(self, f)
     }
 }
 

@@ -195,31 +195,32 @@ fn main() -> Result<(), Box<dyn Error>> {
                                 .alignment(Alignment::Center)
                                 .style(Style::default().add_modifier(Modifier::ITALIC));
 
-                        f.render_widget(session_text_widget, session_text_area);
+                            .style(Style::default().add_modifier(Modifier::ITALIC));
 
-                        let timer_box = make_centered_box(app_box, 45, 6);
-                        let timer_areas = Layout::default()
-                            .direction(Direction::Horizontal)
-                            .constraints(
-                                [
-                                    Constraint::Max(10),
-                                    Constraint::Max(10),
-                                    Constraint::Max(5),
-                                    Constraint::Max(10),
-                                    Constraint::Max(10),
-                                ]
-                                .as_ref(),
-                            )
-                            .split(timer_box);
+                    f.render_widget(session_text_widget, session_text_area);
 
-                        let time_fmt = state.current_session.remaining().into_representation();
-                        for (ix, c) in time_fmt.chars().enumerate() {
-                            let glyph_widget = Paragraph::new(GLYPH_DEFINITIONS[&c].into_spans())
-                                .block(Block::default())
-                                .alignment(Alignment::Center);
+                    let timer_box = make_centered_box(app_box, 45, 6);
+                    let timer_areas = Layout::default()
+                        .direction(Direction::Horizontal)
+                        .constraints(
+                            [
+                                Constraint::Max(10),
+                                Constraint::Max(10),
+                                Constraint::Max(5),
+                                Constraint::Max(10),
+                                Constraint::Max(10),
+                            ]
+                            .as_ref(),
+                        )
+                        .split(timer_box);
 
-                            f.render_widget(glyph_widget, timer_areas[ix]);
-                        }
+                    let time_fmt = state.current_session.remaining().into_representation();
+                    for (ix, c) in time_fmt.chars().enumerate() {
+                        let glyph_widget = Paragraph::new(GLYPH_DEFINITIONS[&c].into_spans())
+                            .block(Block::default())
+                            .alignment(Alignment::Center);
+
+                        f.render_widget(glyph_widget, timer_areas[ix]);
                     }
                 }
             }

@@ -68,12 +68,12 @@ impl Session {
         self.duration < self.elapsed_time.elapsed()
     }
 
-    pub fn is_paused(&self) -> bool {
-        self.paused_time.is_some()
-    }
-
     pub fn remaining(&self) -> Duration {
-        self.duration - self.elapsed_time.elapsed()
+        if let Some(paused) = self.paused_time {
+            self.duration - self.elapsed_time.elapsed() + paused.elapsed()
+        } else {
+            self.duration - self.elapsed_time.elapsed()
+        }
     }
 
     pub fn toggle_pause(&mut self) {

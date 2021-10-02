@@ -20,12 +20,12 @@ use rodio::{OutputStream, OutputStreamHandle};
 use tui::{
     backend::CrosstermBackend,
     layout::{Alignment, Constraint, Direction, Layout, Rect},
-    style::{Color, Modifier, Style},
+    style::{Modifier, Style},
     widgets::{Block, Borders, Paragraph},
     Terminal,
 };
 
-use constants::{IntoSpans, DESCRIPTION, GLYPH_DEFINITIONS, PAUSE_MSG};
+use constants::{IntoSpans, DESCRIPTION, GLYPH_DEFINITIONS};
 use session::{IntoRepresentation, Session, SessionMode};
 
 mod constants;
@@ -44,6 +44,7 @@ enum PomoViews {
 #[derive(Debug)]
 struct PomoState {
     current_session: Session,
+    is_paused: bool,
     current_view: PomoViews,
     prev_sessions: i16,
 }
@@ -52,6 +53,7 @@ impl Default for PomoState {
     fn default() -> PomoState {
         PomoState {
             current_session: Session::new(SessionMode::LongSession),
+            is_paused: false,
             current_view: PomoViews::Timer,
             prev_sessions: 0,
         }
@@ -179,47 +181,37 @@ fn main() -> Result<(), Box<dyn Error>> {
                 PomoViews::Timer => {
                     let app_box = make_centered_box(f.size(), 45, f.size().height);
 
-                    if state.current_session.is_paused() {
-                        let paused_dialog = make_centered_box(app_box, app_box.width, 4);
-                        let paused_dialog_widget = Paragraph::new(PAUSE_MSG.into_spans())
-                            .block(Block::default().borders(Borders::ALL))
+                    let session_text_area = make_centered_box(app_box, 15, 10);
+                    let session_text_widget =
+                        Paragraph::new(state.current_session.mode.to_string())
+                            .block(Block::default())
                             .alignment(Alignment::Center)
-                            .style(Style::default().fg(Color::Red).add_modifier(Modifier::BOLD));
+                            .style(Style::default().add_modifier(Modifier::ITALIC));
 
-                        f.render_widget(paused_dialog_widget, paused_dialog);
-                    } else {
-                        let session_text_area = make_centered_box(app_box, 15, 10);
-                        let session_text_widget =
-                            Paragraph::new(state.current_session.mode.to_string())
-                                .block(Block::default())
-                                .alignment(Alignment::Center)
-                                .style(Style::default().add_modifier(Modifier::ITALIC));
+                    f.render_widget(session_text_widget, session_text_area);
 
-                        f.render_widget(session_text_widget, session_text_area);
+                    let timer_box = make_centered_box(app_box, 45, 6);
+                    let timer_areas = Layout::default()
+                        .direction(Direction::Horizontal)
+                        .constraints(
+                            [
+                                Constraint::Max(10),
+                                Constraint::Max(10),
+                                Constraint::Max(5),
+                                Constraint::Max(10),
+                                Constraint::Max(10),
+                            ]
+                            .as_ref(),
+                        )
+                        .split(timer_box);
 
-                        let timer_box = make_centered_box(app_box, 45, 6);
-                        let timer_areas = Layout::default()
-                            .direction(Direction::Horizontal)
-                            .constraints(
-                                [
-                                    Constraint::Max(10),
-                                    Constraint::Max(10),
-                                    Constraint::Max(5),
-                                    Constraint::Max(10),
-                                    Constraint::Max(10),
-                                ]
-                                .as_ref(),
-                            )
-                            .split(timer_box);
+                    let time_fmt = state.current_session.remaining().into_representation();
+                    for (ix, c) in time_fmt.chars().enumerate() {
+                        let glyph_widget = Paragraph::new(GLYPH_DEFINITIONS[&c].into_spans())
+                            .block(Block::default())
+                            .alignment(Alignment::Center);
 
-                        let time_fmt = state.current_session.remaining().into_representation();
-                        for (ix, c) in time_fmt.chars().enumerate() {
-                            let glyph_widget = Paragraph::new(GLYPH_DEFINITIONS[&c].into_spans())
-                                .block(Block::default())
-                                .alignment(Alignment::Center);
-
-                            f.render_widget(glyph_widget, timer_areas[ix]);
-                        }
+                        f.render_widget(glyph_widget, timer_areas[ix]);
                     }
                 }
             }

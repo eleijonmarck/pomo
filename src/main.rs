@@ -30,6 +30,7 @@ use session::{IntoRepresentation, Session, SessionMode};
 
 mod constants;
 mod session;
+mod telegrambot;
 
 /*
 inspiration - https://github.com/zenito9970/countdown-rs/blob/master/src/main.rs
@@ -248,6 +249,10 @@ fn make_centered_box(rect: Rect, width: u16, height: u16) -> Rect {
 fn make_notifier(
     stream_handle: &OutputStreamHandle,
 ) -> impl Fn(&str, &'static [u8]) -> NotificationHandle + '_ {
+    // anonymous function
+    // move is a reservered word
+    // move moves the ownership of the data
+    // to the respective closure of the function handle
     move |message, sound_file| {
         let notification = Notification::new()
             .summary("☝️ Pomotime!")
@@ -256,7 +261,9 @@ fn make_notifier(
             .icon("firefox")
             .show();
 
-        // we expect &'static because we want the bytes that we read to be available in memory for the lifetime of the program
+        // we expect &'static
+        // because we want the bytes that we read
+        // to be available in memory for the lifetime of the program
         let sound_cursor = Cursor::new(sound_file);
         if let Ok(sink) = stream_handle.play_once(sound_cursor) {
             sink.detach();

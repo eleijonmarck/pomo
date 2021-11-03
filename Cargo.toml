@@ -13,3 +13,11 @@ notify-rust = "4"
 num = "0.3"
 rodio = "0.13.0"
 tui = { version = "0.14", default-features = false, features = ["crossterm"] }
+teloxide = { version = "0.5", features = ["macros"] }
+log = "0.4"
+pretty_env_logger = "0.4.0"
+tokio = { version =  "1.8", features = ["rt-multi-thread", "macros"] }
+teloxide-core = "0.3"
+serde = { version = "1.0", features = ["derive"] }
+dirs = "3.0"
+toml = "0.5"

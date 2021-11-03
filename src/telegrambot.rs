@@ -1,5 +1,10 @@
 use serde::Deserialize;
 use std::{fs::File, io::Read, path::PathBuf};
+use teloxide::{
+    payloads::GetMe,
+    prelude::{Request, Requester},
+    requests::JsonRequest,
+};
 
 use dirs::config_dir;
 
@@ -31,7 +36,18 @@ fn default_cfg_path() -> PathBuf {
 /*
     receive message from pomo
 */
-fn send(message: &str) {
+
+// TODO: remove me if send_message_telegram works
+// pub async fn easy_send() {
+//     let bot = Bot::new("TOKEN");
+//     // Note: it's recommended to `Requester` instead of creating requests directly
+//     let method = GetMe::new();
+//     let request = JsonRequest::new(bot, method);
+//     let _: _ = request.send().await.unwrap();
+// }
+
+pub fn send_message_telegram(master_chat_id: i64, message: Option<&str>) {
+    let prefix = Some("prefix");
     let cfg_path: PathBuf = default_cfg_path();
     let mut config_file = File::open(&cfg_path)
         .unwrap_or_else(|err| panic!("Error opening config {:?}: {:?}", cfg_path, err));
@@ -44,10 +60,7 @@ fn send(message: &str) {
     let Config { token } =
         toml::from_str(&config_raw).unwrap_or_else(|err| panic!("Error parsing config: {:?}", err));
 
-    let bot = Bot::with_client(
-        token,
-        None => reqwest::Client::new(),
-    );
+    let bot = Bot::with_client(token, reqwest::Client::new());
 
     let rt = tokio::runtime::Builder::new_current_thread()
         .enable_io()
@@ -56,18 +69,18 @@ fn send(message: &str) {
         .expect("Error building tokio::runtime::Runtime");
 
     let res = rt.block_on(async move {
-        match (message) {
-            (Some(message)) => {
+        match message {
+            Some(message) => {
                 let message = prefix
                     .map_or_else(|| String::with_capacity(message.len()), str::to_owned)
                     + &message;
                 bot.send_message(master_chat_id, message)
-                    .parse_mode(ParseMode::Html)
+                    // .parse_mode(ParseMode::Html)
                     .send()
                     .await
                     .map(drop)
             }
-            (None) => bot.get_me().send().await.map(|me| {
+            None => bot.get_me().send().await.map(|me| {
                 log::info!("getMe -> {:#?}", me);
                 log::info!("Config is fine. Exiting.");
                 log::info!("For help use `notify-tg --help`");

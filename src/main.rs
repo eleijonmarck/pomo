@@ -156,6 +156,8 @@ fn main() -> Result<(), Box<dyn Error>> {
                             session_over_sound,
                         );
                     };
+                    // telegrambot::easy_send();
+                    telegrambot::send_message_telegram(12, Some("yo"))
                 }
                 SessionMode::LongBreak => {
                     notify("Long break is over!", break_over_sound);

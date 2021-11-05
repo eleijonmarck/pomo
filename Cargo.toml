@@ -13,14 +13,12 @@ notify-rust = "4"
 num = "0.3"
 rodio = "0.13.0"
 tui = { version = "0.14", default-features = false, features = ["crossterm"] }
+
+# telegram bot
 teloxide = { version = "0.5", features = ["macros"] }
+tokio = { version =  "1.8", features = ["rt-multi-thread", "macros"] }
 log = "0.4"
-confy = "0.4"
 pretty_env_logger = "0.4.0"
-tokio = "1.8"
-reqwest = "0.11"
-serde = { version = "1.0", features = ["derive"] }
-toml = "0.5"
-telegrambot = "0.1"
-futures = "0.1.26"
+dotenv = "0.15.0"
+dotenv_codegen = "0.15.0"
 

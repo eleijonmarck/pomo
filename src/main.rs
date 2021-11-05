@@ -155,18 +155,18 @@ fn main() -> Result<(), Box<dyn Error>> {
                             session_over_sound,
                         );
                     };
-                    // telegrambot::easy_send();
-                    pomotelegrambot::send_message_telegram();
                 }
                 SessionMode::LongBreak => {
                     notify("Long break is over!", break_over_sound);
                     state.current_session = Session::new(SessionMode::LongSession);
-                    // telegrambot::send_message_telegram(12, Some("yo form long break"))
+                    // TODO: if user wants telegrambot
+                    pomotelegrambot::send_message_telegram("LongBreak is over");
                 }
                 SessionMode::ShortBreak => {
                     notify("Short break is over!", break_over_sound);
                     state.current_session = Session::new(SessionMode::LongSession);
-                    // telegrambot::send_message_telegram(12, Some("yo from shortb"))
+                    // TODO: if user wants telegrambot
+                    pomotelegrambot::send_message_telegram("ShortBreak is over");
                 }
             }
         }

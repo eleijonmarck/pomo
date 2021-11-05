@@ -1,14 +1,6 @@
 #[macro_use]
 extern crate lazy_static;
 
-use std::{
-    env,
-    error::Error,
-    io::{stdout, Cursor, Write}, // The Write trait is needed for stdout
-    process,
-    time::Duration,
-};
-
 use crossterm::{
     event::{poll, read, DisableMouseCapture, Event, KeyCode, KeyEvent, KeyModifiers},
     execute,
@@ -17,6 +9,13 @@ use crossterm::{
 use notify_rust::{Notification, NotificationHandle};
 use num::Integer;
 use rodio::{OutputStream, OutputStreamHandle};
+use std::{
+    env,
+    error::Error,
+    io::{stdout, Cursor, Write}, // The Write trait is needed for stdout
+    process,
+    time::Duration,
+};
 use tui::{
     backend::CrosstermBackend,
     layout::{Alignment, Constraint, Direction, Layout, Rect},
@@ -29,8 +28,8 @@ use constants::{IntoSpans, DESCRIPTION, GLYPH_DEFINITIONS};
 use session::{IntoRepresentation, Session, SessionMode};
 
 mod constants;
+mod pomotelegrambot;
 mod session;
-mod telegrambot;
 
 /*
 inspiration - https://github.com/zenito9970/countdown-rs/blob/master/src/main.rs
@@ -157,15 +156,17 @@ fn main() -> Result<(), Box<dyn Error>> {
                         );
                     };
                     // telegrambot::easy_send();
-                    telegrambot::send_message_telegram(12, Some("yo"))
+                    pomotelegrambot::send_message_telegram();
                 }
                 SessionMode::LongBreak => {
                     notify("Long break is over!", break_over_sound);
                     state.current_session = Session::new(SessionMode::LongSession);
+                    // telegrambot::send_message_telegram(12, Some("yo form long break"))
                 }
                 SessionMode::ShortBreak => {
                     notify("Short break is over!", break_over_sound);
                     state.current_session = Session::new(SessionMode::LongSession);
+                    // telegrambot::send_message_telegram(12, Some("yo from shortb"))
                 }
             }
         }

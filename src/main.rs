@@ -6,6 +6,7 @@ use crossterm::{
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
+use dotenv::dotenv;
 use notify_rust::{Notification, NotificationHandle};
 use num::Integer;
 use rodio::{OutputStream, OutputStreamHandle};
@@ -60,7 +61,20 @@ impl Default for PomoState {
     }
 }
 
+fn user_has_setup_telegram() -> bool {
+    // SETUP TELEGRAMBOT
+    let chat_id: String = dotenv::var("CHAT_ID").unwrap();
+    let is_numeric = chat_id.trim().parse::<i64>();
+    match is_numeric {
+        Ok(is_numeric) => return true,
+        Err(e) => return false,
+    }
+}
+
 fn main() -> Result<(), Box<dyn Error>> {
+    dotenv().ok(); // Read .env and set env variables with this
+
+    let has_setup_telegram = user_has_setup_telegram();
     // how to use pomodoro, on help or when asking for it
     if env::args().len() > 2 {
         let program = env::args().next().unwrap();
@@ -160,13 +174,17 @@ fn main() -> Result<(), Box<dyn Error>> {
                     notify("Long break is over!", break_over_sound);
                     state.current_session = Session::new(SessionMode::LongSession);
                     // TODO: if user wants telegrambot
-                    pomotelegrambot::send_message_telegram("LongBreak is over");
+                    if has_setup_telegram {
+                        pomotelegrambot::send_message_telegram("LongBreak is over");
+                    }
                 }
                 SessionMode::ShortBreak => {
                     notify("Short break is over!", break_over_sound);
                     state.current_session = Session::new(SessionMode::LongSession);
                     // TODO: if user wants telegrambot
-                    pomotelegrambot::send_message_telegram("ShortBreak is over");
+                    if has_setup_telegram {
+                        pomotelegrambot::send_message_telegram("ShortBreak is over");
+                    }
                 }
             }
         }

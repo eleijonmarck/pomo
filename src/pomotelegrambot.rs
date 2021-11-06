@@ -1,4 +1,3 @@
-use dotenv::dotenv;
 use std::env;
 use teloxide::prelude::*;
 
@@ -41,12 +40,9 @@ pub async fn send_message_telegram(message: &str) {
     run(message).await;
 }
 async fn run(message: &str) {
-    dotenv().ok(); // Read .env and set env variables with this
     teloxide::enable_logging!();
     let bot = Bot::from_env();
-
-    let chat_id = dotenv::var("CHAT_ID").unwrap();
-
+    let chat_id: String = dotenv::var("CHAT_ID").unwrap();
     bot.send_message(chat_id, message)
         .send()
         .await

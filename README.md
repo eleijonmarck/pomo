@@ -5,7 +5,8 @@ The first ever built and most performant pomodoro timer for your terminal.
 <img src="./images/pomo-logo-transparent.png" alt="drawing" width="250"/>
 
 ## Example
-<img src="./docs/pomo.mov"/>
+![example](./images/pomo.gif)
+
 
 ## Installation
 

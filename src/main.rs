@@ -1,6 +1,15 @@
 #[macro_use]
 extern crate lazy_static;
 
+use crossterm::{
+    event::{poll, read, DisableMouseCapture, Event, KeyCode, KeyEvent, KeyModifiers},
+    execute,
+    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
+};
+use dotenv::dotenv;
+use notify_rust::{Notification, NotificationHandle};
+use num::Integer;
+use rodio::{OutputStream, OutputStreamHandle};
 use std::{
     env,
     error::Error,
@@ -8,15 +17,6 @@ use std::{
     process,
     time::Duration,
 };
-
-use crossterm::{
-    event::{poll, read, DisableMouseCapture, Event, KeyCode, KeyEvent, KeyModifiers},
-    execute,
-    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
-};
-use notify_rust::{Notification, NotificationHandle};
-use num::Integer;
-use rodio::{OutputStream, OutputStreamHandle};
 use tui::{
     backend::CrosstermBackend,
     layout::{Alignment, Constraint, Direction, Layout, Rect},
@@ -29,6 +29,7 @@ use constants::{IntoSpans, DESCRIPTION, GLYPH_DEFINITIONS};
 use session::{IntoRepresentation, Session, SessionMode};
 
 mod constants;
+mod pomotelegrambot;
 mod session;
 
 /*
@@ -58,7 +59,20 @@ impl Default for PomoState {
     }
 }
 
+fn user_has_setup_telegram() -> bool {
+    // SETUP TELEGRAMBOT
+    let chat_id: String = dotenv::var("CHAT_ID").unwrap();
+    let is_numeric = chat_id.trim().parse::<i64>();
+    match is_numeric {
+        Ok(is_numeric) => return true,
+        Err(e) => return false,
+    }
+}
+
 fn main() -> Result<(), Box<dyn Error>> {
+    dotenv().ok(); // Read .env and set env variables with this
+
+    let has_setup_telegram = user_has_setup_telegram();
     // how to use pomodoro, on help or when asking for it
     if env::args().len() > 2 {
         let program = env::args().next().unwrap();
@@ -157,10 +171,18 @@ fn main() -> Result<(), Box<dyn Error>> {
                 SessionMode::LongBreak => {
                     notify("Long break is over!", break_over_sound);
                     state.current_session = Session::new(SessionMode::LongSession);
+                    // TODO: if user wants telegrambot
+                    if has_setup_telegram {
+                        pomotelegrambot::send_message_telegram("LongBreak is over");
+                    }
                 }
                 SessionMode::ShortBreak => {
                     notify("Short break is over!", break_over_sound);
                     state.current_session = Session::new(SessionMode::LongSession);
+                    // TODO: if user wants telegrambot
+                    if has_setup_telegram {
+                        pomotelegrambot::send_message_telegram("ShortBreak is over");
+                    }
                 }
             }
         }
@@ -246,6 +268,10 @@ fn make_centered_box(rect: Rect, width: u16, height: u16) -> Rect {
 fn make_notifier(
     stream_handle: &OutputStreamHandle,
 ) -> impl Fn(&str, &'static [u8]) -> NotificationHandle + '_ {
+    // anonymous function
+    // move is a reservered word
+    // move moves the ownership of the data
+    // to the respective closure of the function handle
     move |message, sound_file| {
         let notification = Notification::new()
             .summary("☝️ Pomotime!")
@@ -254,7 +280,9 @@ fn make_notifier(
             .icon("firefox")
             .show();
 
-        // we expect &'static because we want the bytes that we read to be available in memory for the lifetime of the program
+        // we expect &'static
+        // because we want the bytes that we read
+        // to be available in memory for the lifetime of the program
         let sound_cursor = Cursor::new(sound_file);
         if let Ok(sink) = stream_handle.play_once(sound_cursor) {
             sink.detach();

@@ -44,7 +44,6 @@ enum PomoViews {
 #[derive(Debug)]
 struct PomoState {
     current_session: Session,
-    is_paused: bool,
     current_view: PomoViews,
     prev_sessions: i16,
 }
@@ -53,7 +52,6 @@ impl Default for PomoState {
     fn default() -> PomoState {
         PomoState {
             current_session: Session::new(SessionMode::LongSession),
-            is_paused: false,
             current_view: PomoViews::Timer,
             prev_sessions: 0,
         }
